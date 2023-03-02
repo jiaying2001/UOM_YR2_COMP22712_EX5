@@ -5,21 +5,22 @@
 ;    2st Mar 2023
 ;
 ;    Description:
-;		
+;			includes the system code to access the hardware devices, SVC handlers and reset
 ;
 ;------------------------------------------------------------------------ 
 
 GET size.s
 GET mode.s
+GET io_port_map.s
 
 Reset 			B reset_handler 	; Reset (address 0)
-				B Undef_handler 	; Undefined instruction
+				NOP 	; Undefined instruction
 				B SVC_entry 		; SVC call
-				B Prefetch_abort 	; Page fault
-				B Data_abort 		; Page fault
+				NOP 	; Page fault
+				NOP		; Page fault
 				NOP 				; Unused ‘vector’
-				B IRQ_service 		; Interrupt
-				B FIQ_service 		; Fast interrupt
+				NOP 		; Interrupt
+				NOP 		; Fast interrupt
 
 SVC_entry		STMFD SP!, {R0, R2, LR}
 
@@ -71,16 +72,18 @@ SVC_3   		STMFD SP!, {LR}
 		        LDMFD SP!, {PC}
 
 SVC_unknown B SVC_exit
-
-reset_handler 	LDR R0, _stack_base
+				
+				DEFS 512	
+_stack_base 	
+reset_handler 	ADR R0, _stack_base ; reset_handler here treated as stack base
 				MOV SP, R0
 				SUB R0, R0, #Len_SVC_Stack
 				MSR CPSR, #Mode_System
 				MOV SP, R0 
 				MSR CPSR, #Mode_Supervisor
 
- 				DEFS &30
-_stack_base
+ 				
+
 				BL LCD_clear
 
 				MOV LR, #Mode_User ; User mode, no ints.
@@ -89,6 +92,7 @@ _stack_base
 				MOVS PC, LR ; ‘Return’ to user code
 GET timer.s
 GET LCD.s
+GET user_code.s
 
 
 

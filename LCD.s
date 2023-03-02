@@ -34,7 +34,7 @@ move_cursor_to_line1_beginning_command     EQU &80
 LCD_print_char      STMFD SP!, {R0, R1, LR}             
             
                     MOV R0, #write_to_data_signal ; write to data register in LCD 
-                    LDRB R1, R4 ; Get the parameter (a char) from  cotent of R4 
+                    MOV R1, R4 ; Get the parameter (a char) from  cotent of R4 
                     BL LCD_write
 
                     LDMFD SP!, {R0, R1, PC}
@@ -51,7 +51,7 @@ LCD_move_cursor_to_line1_beginning  STMFD SP!, {R0, R1, LR}
 
                                     MOV R0, #write_to_control_signal       ; Write to control register in LCD 
                                     MOV R1, #move_cursor_to_line1_beginning_command
-                                    BL write_to_LCD
+                                    BL LCD_write
 
                                     LDMFD SP!, {R0, R1, PC}
 
@@ -67,7 +67,7 @@ LCD_clear           STMFD SP!, {R0, R1, LR}
 
                     MOV R0, #write_to_control_signal       ; Write to control register in LCD 
                     MOV R1, #clear_display_command            ; clear command (&01) for LCD
-                    BL write_to_LCD  
+                    BL LCD_write  
                     BL delay
 
                     LDMFD SP!, {R0, R1, PC}
