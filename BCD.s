@@ -5,29 +5,28 @@
 ;    1st Mar 2023
 ;
 ;    Description:
-;		This programme provedes several functions to perform an ADD arithmetic and print it out.
+;		This programme provedes several functions to perform an ADD BCD arithmetic and print it out.
 ;
 ;------------------------------------------------------------------------ 
 
-test_least_significant_four_bits    EQU :00001111   ; mask other bits and evaluate least sig four bits whether it exceeds or euqal to 10
+test_least_significant_four_bits    EQU :00001111   ; mask other bits and evaluate least sig four bits if it exceeds or euqal to 10
 clear_least_significant_four_bits   EQU :00001111   ; clear the least sig four bits if it exceeds 9
 test_most_significant_four_bits     EQU :11110000   ; similar to ones above
 clear_most_significant_four_bits    EQU :11110000
-
 
 ;------------------------
 ;    Procedure: BCD_print_two_bytes
 ;
 ;    Description:
-;          Print out two-byte BCD to display
+;          Print out a two-byte BCD on the LCD
 ;   
 ;    Parameter:
 ;        R0 -> a pointer to a two-byte BCD
 ;------------------------
 BCD_print_two_bytes STMFD SP!, {R4, LR}
-                    LDRB R4, [R0, #1] ; Load the most significant four bits and print it out
+                    LDRB R4, [R0, #1] ; Load the most significant eight bits and print it out
                     BL BCD_printHex8
-                    LDRB R4, [R0] ; Load the least significant four bits and print it out
+                    LDRB R4, [R0] ; Load the least significant eight bits and print it out
                     BL BCD_printHex8
                     LDMFD SP!, {R4, PC}
 
@@ -36,7 +35,7 @@ BCD_print_two_bytes STMFD SP!, {R4, LR}
 ;    Procedure: BCD_one_byte_half_adder
 ;
 ;    Description:
-;         Add carry in input to a one-byte BCD, considering least significant 8 bits in a 32-bit word.
+;         Add one to a one-byte BCD if the carry in input is set.
 ;   
 ;    Parameter:
 ;       R0 -> a pointer to a one-byte BCD
@@ -48,12 +47,12 @@ BCD_print_two_bytes STMFD SP!, {R4, LR}
 ;       
 ;------------------------
 BCD_one_byte_half_adder     STMFD SP!, {R3}
-                            CMP R1, #0  ; Exit if the carry in param is zero
+                            CMP R1, #0  ; Exit if the carry in param is not set
                             BEQ BCD_one_byte_half_adder2
 
                             LDRB R2, [R0]; Load the BCD param into R0
                             ADD R2, R2, #1 ; Add 1 to least significant 4 bits 
-                            ANDS R3, R2, #test_least_significant_four_bits ; mask bits except ls 4 bits
+                            ANDS R3, R2, #test_least_significant_four_bits
                             CMP R3, #10 ; if ls 4 bits greater than or equal to 10, add 1 to the next four bits and clear the ls 4 bits
                             BLT BCD_one_byte_half_adder1
                             BIC R2, R2, #clear_least_significant_four_bits
@@ -61,9 +60,9 @@ BCD_one_byte_half_adder     STMFD SP!, {R3}
 
                             ANDS R3, R2, #test_most_significant_four_bits ; After addition of ms four bits, we check if it is greater than or equal to 10 (&A0)
                             CMP R3, #&A0 ; if so, clear the ms four bits and output a carry out
-                            BICEQ R2, R2, #clear_most_significant_four_bits 
+                            BICGE R2, R2, #clear_most_significant_four_bits 
                         
-BCD_one_byte_half_adder1    MOVLT R1, #0 ; Since R1 should be 1 if reach this command, if ms four bits less than 10 then output 0 as carry out
+BCD_one_byte_half_adder1    MOVLT R1, #0 ; Since R1 should be 1 if reaching this command, if ms four bits less than 10 then output 0 as carry out
                             STRB R2, [R0], #1 ; post-increment it, then it is ready for the addition of a next byte in a BCD
 BCD_one_byte_half_adder2    LDMFD SP!, {R3}
                             MOV PC, LR

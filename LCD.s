@@ -10,13 +10,13 @@
 ;    Specific to HD44780 LCD 
 ;------------------------------------------------------------------------   
 
-read_control_signal 		       EQU 4
-write_to_control_signal 		   EQU 0
-write_to_data_signal   		       EQU 2
-enable 						       EQU 1
-disable 					       EQU 1
-if_busy   					       EQU &80
-busy 						       EQU &80
+read_control_signal 		       EQU 4 ; the signal for reading the control register in the LCD
+write_to_control_signal 		   EQU 0 ; the signal for writing to the control register in the LCD
+write_to_data_signal   		       EQU 2 ; the signal for writing to the data register in the LCD
+enable 						       EQU 1 ; enable the LCD operation
+disable 					       EQU 1 ; disable the LCD operation
+if_busy   					       EQU &80 ; signal to sheck if the LCD is busy
+busy 						       EQU &80 ; a bit which is set for busy 
 DELAY_LOOP_TIMES 			       EQU &8000
 clear_display_command 		       EQU &01
 move_cursor_to_line1_beginning_command     EQU &80
