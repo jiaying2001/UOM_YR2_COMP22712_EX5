@@ -10,20 +10,15 @@
 ;    Key states:  PRESSED and RELEASED
 ;
 ;------------------------------------------------------------------------
-
 PRESSED             EQU 1
 RELEASED            EQU 0
-scan_first_row      EQU &2F
-scan_second_row     EQU &4F
-scan_thrid_row      EQU &8F
+scan_first_row      EQU &80
+scan_second_row     EQU &40
+scan_third_row      EQU &20
 key_state_table_size EQU 12
 key_count_table_size EQU 12
 max_debounce_count   EQU 8
 min_debounce_count   EQU 0
-
-test_code                  BL debounce
-                            B test_code
-
 
 ; A keypad map reading the device as follows: 
 ; |3|  |6|  |9|  |#|
@@ -52,20 +47,26 @@ key_count_table DEFB 0, 0, 0, 0
 debounce        STMFD SP!, {R0-R8}
                 MOV R8, #FPGA_io_base_addr
                 ; Loop Unrolling
-                MOV R0, #scan_first_row
+                MOV R0, #&1F
                 STRB R0, [R8, #S0_upper_control_register]
+
+                MOV R0, #scan_first_row
+                STRB R0, [R8, #S0_upper_data_register]
                 LDRB R1, [R8, #S0_upper_data_register]
+                BIC R1, R1, #&F0
                 LSL R1, R1, #4
 
                 MOV R0, #scan_second_row
-                STRB R0, [R8, #S0_upper_control_register]
+                STRB R0, [R8, #S0_upper_data_register]
                 LDRB R2, [R8, #S0_upper_data_register]
+                BIC R2, R2, #&F0
                 ORR R1, R1, R2
                 LSL R1, R1, #4 
 
                 MOV R0, #scan_third_row
-                STRB R0, [R8, #S0_upper_control_register]
+                STRB R0, [R8, #S0_upper_data_register]
                 LDRB R2, [R8, #S0_upper_data_register]
+                BIC R2, R2, #&F0
                 ORR R1, R1, R2
 
                 ; keymap in the least significant 12 bits in R1

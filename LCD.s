@@ -20,6 +20,7 @@ busy 						       EQU &80 ; a bit which is set for busy
 DELAY_LOOP_TIMES 			       EQU &8000
 clear_display_command 		       EQU &01
 move_cursor_to_line1_beginning_command     EQU &80
+end_of_str                          EQU 0
 
 
 ;------------------------

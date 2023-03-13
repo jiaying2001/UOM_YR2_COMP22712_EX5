@@ -80,7 +80,7 @@ SVC_3   		STMFD SP!, {LR}
 		        LDMFD SP!, {PC}
 
 ; Entry point for interrupt services
-ISR_entry   SUB LR, LR, #4
+ISR_entry   SUBS LR, LR, #4
             STMFD SP!, {R0-R2, R8, LR}
 
             MOV R8, #io_base_addr
@@ -97,24 +97,24 @@ ISR_entry1  ADD R2, R2, #1
 
 			; clear the interrupt source
 			MOV R3, #1
-			BIC R0, R3
+			BIC R0, R0, R3
 			STRB R0, [R8, #Interrupt_requests]
 
             ADR R1, ISR_table
             ADR LR, ISR_exit
             LDR PC, [R1, R2, LSL #2]
 
-ISR_exit    LDMFD SP!, {R1-R2, R8, PC}^
+ISR_exit    LDMFD SP!, {R0-R2, R8, PC}^
 
 ISR_table   DEFW  ISR_time_compare
 
 ISR_time_compare    
                     LDRB R1, [R8, #Timer_compare]
                     ADD R1, R1, #10
-                    STRB R1, [R8, #Timer_compare]
-
-					B debounce
-
+                    STRB R12, [R8, #Timer_compare]
+					STMFD SP!, {LR}
+					BL debounce
+					LDMFD SP!, {LR}
                     MOV PC, LR 
 
 
@@ -136,11 +136,11 @@ reset_handler 	ADR R0, _stack_base ; reset_handler here treated as stack base
 				MOV SP, R0
 				MSR CPSR, #Mode_Supervisor
 
-				BL LCD_clear
+				ADRL R0, io_base_addr
+				MOV R1, #&81
+				STRB R1, [R0, #Interrupt_enables] 
 
-				ADR R0, Interrupt_enables
-				MOV R1, #1
-				LDRB R1, [R0] 
+				BL LCD_clear
 
 				; Switch to User mode
 				MOV LR, #Mode_User ; User mode, with ints.
@@ -149,8 +149,7 @@ reset_handler 	ADR R0, _stack_base ; reset_handler here treated as stack base
 				MOVS PC, LR ; ‘Return’ to user code
 GET timer.s
 GET LCD.s
-GET user_code.s
 GET keypad.s
-
+GET user_code.s
 
 

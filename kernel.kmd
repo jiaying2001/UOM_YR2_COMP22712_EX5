@@ -1,0 +1,697 @@
+KMD
+00000000:             ; ;-----------------------------------------------------------------------
+00000000:             ; ;    Module: Kernel programme
+00000000:             ; ;    Author: Jiaying Huang 
+00000000:             ; ;    Version: 1.0
+00000000:             ; ;    2st Mar 2023
+00000000:             ; ;
+00000000:             ; ;    Description:
+00000000:             ; ;                       includes the system code accessing the hardware devices, SVC handlers a
+                      ; nd reset
+00000000:             ; ;
+00000000:             ; ;------------------------------------------------------------------------ 
+00000000:             ; ; Labels declaration
+00000000:             ; GET size.s
+00000000:             ; ;-----------------------------------------------------------------------
+00000000:             ; ;    Module: Mode labels 
+00000000:             ; ;    Author: Jiaying Huang 
+00000000:             ; ;    Version: 1.0
+00000000:             ; ;    1st Mar 2023
+00000000:             ; ;
+00000000:             ; ;    Description:
+00000000:             ; ;               Labels for the sizes
+00000000:             ; ;
+00000000:             ; ;------------------------------------------------------------------------ 
+00000000:             ; Max_SVC                  EQU     4 ; maximum number of svc cals in the os
+00000000:             ; Len_SVC_Stack    EQU     256 ; stack size for supervisor mode
+00000000:             ; Len_ISR_Stack    EQU 256 ; stack size for interrupt mode
+00000000:             ; GET mode.s
+00000000:             ; ;-----------------------------------------------------------------------
+00000000:             ; ;    Module: Mode labels 
+00000000:             ; ;    Author: Jiaying Huang 
+00000000:             ; ;    Version: 1.0
+00000000:             ; ;    1st Mar 2023
+00000000:             ; ;
+00000000:             ; ;    Description:
+00000000:             ; ;               Labels for the modes in arm
+00000000:             ; ;
+00000000:             ; ;------------------------------------------------------------------------ 
+00000000:             ; Mode_User                       EQU &50
+00000000:             ; Mode_Fast_Interrupt     EQU &11
+00000000:             ; Mode_Interrupt          EQU &D2
+00000000:             ; Mode_Supervisor         EQU &D3
+00000000:             ; Mode_Abort                      EQU &17
+00000000:             ; Mode_Undefined          EQU &1B
+00000000:             ; Mode_System             EQU &DF
+00000000:             ; 
+00000000:             ; 
+00000000:             ; 
+00000000:             ; 
+00000000:             ; 
+00000000:             ; GET io_port_map.s
+00000000:             ; ;-----------------------------------------------------------------------
+00000000:             ; ;    Module: Mode labels 
+00000000:             ; ;    Author: Jiaying Huang 
+00000000:             ; ;    Version: 1.0
+00000000:             ; ;    1st Mar 2023
+00000000:             ; ;
+00000000:             ; ;    Description:
+00000000:             ; ;               Labels for the io addresses in the komodo system.
+00000000:             ; ;
+00000000:             ; ;------------------------------------------------------------------------ 
+00000000:             ; io_base_addr            EQU &10000000
+00000000:             ; PIO_A                           EQU &0
+00000000:             ; PIO_B                           EQU &04
+00000000:             ; Timer                           EQU &08
+00000000:             ; Timer_compare           EQU &0C
+00000000:             ; Serial_RxD                      EQU &10
+00000000:             ; Serial_TxD                      EQU &10
+00000000:             ; Serial_status           EQU &14
+00000000:             ; Interrupt_requests      EQU     &18
+00000000:             ; Interrupt_enables   EQU &1C
+00000000:             ; Halt_port                       EQU &20
+00000000:             ; FPGA_io_base_addr   EQU &20000000
+00000000:             ; S0_upper_data_register    EQU 2
+00000000:             ; S0_upper_control_register EQU 3
+00000000:             ; 
+00000000: EA0000FF    ; Reset                   B reset_handler         ; Reset (address 0)
+00000004: E1A00000    ;                                 NOP     ; Undefined instruction
+00000008: EA000004    ;                                 B SVC_entry             ; SVC call
+0000000C: E1A00000    ;                                 NOP     ; Page fault
+00000010: E1A00000    ;                                 NOP             ; Page fault
+00000014: E1A00000    ;                                 NOP                             ; Unused ‘vector’
+00000018: EA000020    ;                                 B ISR_entry             ; Interrupt
+0000001C: E1A00000    ;                                 NOP             ; Fast interrupt
+00000020:             ; ; dispatch SVC call to its corresponding procedure
+00000020: E92D4005    ; SVC_entry               STMFD SP!, {R0, R2, LR}
+00000024:             ; 
+00000024: E51E0004    ;                                 LDR R0, [LR, #-4] ; Read SVC instruction
+00000028: E3C004FF    ;                                 BIC R0, R0, #&FF000000 ; Get the integer parameter
+0000002C:             ; 
+0000002C: E3500004    ;                                 CMP R0, #Max_SVC ; Check upper limit
+00000030: 2A000032    ;                                 BHS SVC_unknown
+00000034:             ; 
+00000034: E28F200C    ;                                 ADR R2, SVC_table
+00000038: E28FE000    ;                                 ADR LR, SVC_exit ; All SVC share the same exit procedure
+0000003C: E792F100    ;                                 LDR PC, [R2, R0, LSL #2] 
+00000040:             ; 
+00000040: E8BD4005    ; SVC_exit                LDMFD SP!, {R0, R2, LR}
+00000044: E1B0F00E    ;                                 MOVS PC, LR
+00000048:             ; ; SVC stabe: provides currently active SVCs.
+00000048: 00000058    ; SVC_table               DEFW SVC_0
+0000004C: 00000068    ;                 DEFW SVC_1
+00000050: 00000080    ;                 DEFW SVC_2
+00000054: 00000094    ;                 DEFW SVC_3
+00000058:             ; ; SVC_0: print a character to the LCD
+00000058:             ; ; @param R0 a 8-bit ASCII code
+00000058:             ; ; @return None
+00000058: E92D4010    ; SVC_0                   STMFD SP!, {R4, LR}
+0000005C:             ; 
+0000005C:             ;                         ; Current Stack View: -> R4, LR, R0, R2, LR
+0000005C: E59D4008    ;                                 LDR R4, [SP, #(2 * 4)] ; Get the param from R0
+00000060: EB00010B    ;                                 BL      LCD_print_char
+00000064:             ; 
+00000064: E8BD8010    ;                                 LDMFD SP!, {R4, PC}     
+00000068:             ; ; SVC_1 : wait for a delay
+00000068:             ; ; @param R0 an amount of delay in milliseconds (no more than 256)
+00000068:             ; ; @return None
+00000068: E92D4110    ; SVC_1                   STMFD SP!, {R4, R8, LR}
+0000006C:             ; 
+0000006C: E3A08201    ;                         MOV R8, #io_base_addr
+00000070: E59D400C    ;                         LDR R4, [SP, #(3 * 4)] ; Get the param from R0
+00000074: E35400FF    ;                         CMP R4, #255 ; if the param exceeds the max value, then exit.
+00000078: 9B0000F4    ;                         BLLS Timer_start_delay
+0000007C:             ; 
+0000007C: E8BD8110    ;                         LDMFD SP!, {R4, R8, PC}                         
+00000080:             ; ; SVC_2 : read the two buttons
+00000080:             ; ; @param None
+00000080:             ; ; @return R1 a 8-bit signal in which bit 7 for the lower button and bit 6 for the upper button
+00000080: E92D0100    ; SVC_2                   STMFD SP!, {R8}
+00000084:             ; 
+00000084: E3A08201    ;                         MOV R8, #io_base_addr
+00000088: E5D81004    ;                         LDRB R1, [R8, #PIO_B] ; Read Buttons
+0000008C:             ; 
+0000008C: E8BD0100    ;                         LDMFD SP!, {R8}
+00000090: E1A0F00E    ;                         MOV PC, LR
+00000094:             ; ; SVC_3 : move the cursor of the LCD to the line1 beginning
+00000094:             ; ; @param None
+00000094:             ; ; @return None
+00000094: E92D4000    ; SVC_3                   STMFD SP!, {LR}
+00000098: EB000102    ;                         BL LCD_move_cursor_to_line1_beginning
+0000009C: E8BD8000    ;                         LDMFD SP!, {PC}
+000000A0:             ; 
+000000A0:             ; ; Entry point for interrupt services
+000000A0: E25EE004    ; ISR_entry   SUBS LR, LR, #4
+000000A4: E92D4107    ;             STMFD SP!, {R0-R2, R8, LR}
+000000A8:             ; 
+000000A8: E3A08201    ;             MOV R8, #io_base_addr
+000000AC: E5D80018    ;             LDRB R0, [R8, #Interrupt_requests]
+000000B0: E1A01000    ;                         MOV R1, R0
+000000B4:             ;             ; set up a counter incrementing at each right shift operation,
+000000B4:             ;                         ; indicating which bit of the original byte is shifted. if the 
+000000B4:             ;                         ; bit shifted is set, then the carry bit should be set, we can then kno
+                      ; w 
+000000B4:             ;                         ; which bit in the original is set from the counter.
+000000B4: E3E02000    ;             MOV R2, #-1 ; counter to -1 to make the first bit shifted is bit 0
+000000B8: E2822001    ; ISR_entry1  ADD R2, R2, #1
+000000BC: E1B010C1    ;             ASRS R1, R1, #1
+000000C0: 3AFFFFFC    ;             BCC ISR_entry1
+000000C4:             ; 
+000000C4:             ;                         ; clear the interrupt source
+000000C4: E3A03001    ;                         MOV R3, #1
+000000C8: E1C00003    ;                         BIC R0, R0, R3
+000000CC: E5C80018    ;                         STRB R0, [R8, #Interrupt_requests]
+000000D0:             ; 
+000000D0: E28F1008    ;             ADR R1, ISR_table
+000000D4: E28FE000    ;             ADR LR, ISR_exit
+000000D8: E791F102    ;             LDR PC, [R1, R2, LSL #2]
+000000DC:             ; 
+000000DC: E8FD8107    ; ISR_exit    LDMFD SP!, {R0-R2, R8, PC}^
+000000E0:             ; 
+000000E0: 000000E4    ; ISR_table   DEFW  ISR_time_compare
+000000E4:             ; 
+000000E4:             ; ISR_time_compare    
+000000E4: E5D8100C    ;                     LDRB R1, [R8, #Timer_compare]
+000000E8: E281100A    ;                     ADD R1, R1, #10
+000000EC: E5C8C00C    ;                     STRB R12, [R8, #Timer_compare]
+000000F0: E92D4000    ;                                         STMFD SP!, {LR}
+000000F4: EB000114    ;                                         BL debounce
+000000F8: E8BD4000    ;                                         LDMFD SP!, {LR}
+000000FC: E1A0F00E    ;                     MOV PC, LR 
+00000100:             ; 
+00000100:             ; 
+00000100:             ; 
+00000100:             ; ; reset_handler: Initialization
+00000100:             ; ; 1. set-up for the stack in Supervisor and User modes
+00000100:             ; ; 2. clear the display on the LCD
+00000100: EAFFFFCE    ; SVC_unknown B SVC_exit
+00000104:             ;                                 
+00000104:             ;                                 DEFS 768        
+00000404:             ; _stack_base     
+00000404: E24F0008    ; reset_handler   ADR R0, _stack_base ; reset_handler here treated as stack base
+00000408: E1A0D000    ;                                 MOV SP, R0
+0000040C: E2400C01    ;                                 SUB R0, R0, #Len_SVC_Stack
+00000410: E32FF0DF    ;                                 MSR CPSR, #Mode_System
+00000414: E1A0D000    ;                                 MOV SP, R0 
+00000418: E2400C01    ;                                 SUB R0, R0, #Len_ISR_Stack
+0000041C: E32FF0D2    ;                                 MSR CPSR, #Mode_Interrupt
+00000420: E1A0D000    ;                                 MOV SP, R0
+00000424: E32FF0D3    ;                                 MSR CPSR, #Mode_Supervisor
+00000428:             ; 
+00000428: E28F0EBD    ;                                 ADRL R0, io_base_addr
+0000042C: E2800AFF    ; 
+00000430: E28006FF    ; 
+00000434: E3A01081    ;                                 MOV R1, #&81
+00000438: E5C0101C    ;                                 STRB R1, [R0, #Interrupt_enables] 
+0000043C:             ; 
+0000043C: EB00001E    ;                                 BL LCD_clear
+00000440:             ; 
+00000440:             ;                                 ; Switch to User mode
+00000440: E3A0E050    ;                                 MOV LR, #Mode_User ; User mode, with ints.
+00000444: E16FF00E    ;                                 MSR SPSR, LR ;
+00000448: E28FEF6E    ;                                 ADR LR, User_code_start
+0000044C: E1B0F00E    ;                                 MOVS PC, LR ; ‘Return’ to user code
+00000450:             ; GET timer.s
+00000450:             ; ;-----------------------------------------------------------------------
+00000450:             ; ;    Module: Timer programme
+00000450:             ; ;    Author: Jiaying Huang 
+00000450:             ; ;    Version: 1.0
+00000450:             ; ;    1st Mar 2023
+00000450:             ; ;
+00000450:             ; ;    Description:
+00000450:             ; ;               This programme provedes a function to manipulate the timer generating a delay.
+00000450:             ; ;
+00000450:             ; ;------------------------------------------------------------------------ 
+00000450:             ; 
+00000450:             ; ;------------------------
+00000450:             ; ;    Procedure: Timer_start_delay
+00000450:             ; ;
+00000450:             ; ;    Description:
+00000450:             ; ;        Exit when the input time passes.  
+00000450:             ; ;   
+00000450:             ; ;    Parameter:
+00000450:             ; ;        R4: a amount of time to wait.
+00000450:             ; ;
+00000450:             ; ;    Implementation:
+00000450:             ; ;            Initially reset the timer to zero, repeatedly polling from timer and compare it wi
+                      ; th the input, exit when they are equal.
+00000450:             ; ;
+00000450:             ; ;    Limitation:
+00000450:             ; ;            This function can only serve the input between 0ms to 255ms.
+00000450:             ; ;------------------------
+00000450: E92D0111    ; Timer_start_delay   STMFD SP!, {R0, R4, R8}
+00000454: E35400FF    ;                                 CMP R4, #255 ; the max value a 8-bit value can reach
+00000458: 8A000005    ;                                 BHI Timer_start_delay2
+0000045C:             ; 
+0000045C: E3A08201    ;                                 MOV R8, #io_base_addr
+00000460:             ; 
+00000460: E3A00000    ;                                 MOV R0, #0
+00000464: E5C80008    ;                                 STRB R0, [R8, #Timer] ; Reset the timer to 0
+00000468:             ; 
+00000468: E5D80008    ; Timer_start_delay1  LDRB R0, [R8, #Timer]  ; Polling time from the time 
+0000046C: E1500004    ;                                 CMP R0, R4                              ; cmpare it with inpu v
+                      ; alue R4
+00000470: 9AFFFFFC    ;                                 BLS Timer_start_delay1  ; Loop until they are euqal
+00000474:             ; 
+00000474: E8BD0111    ; Timer_start_delay2  LDMFD SP!, {R0, R4, R8}
+00000478: E1A0F00E    ;                                 MOV PC, LR
+0000047C:             ; GET LCD.s
+0000047C:             ; ;-----------------------------------------------------------------------
+0000047C:             ; ;    Module: LCD programme
+0000047C:             ; ;    Author: Jiaying Huang 
+0000047C:             ; ;    Version: 1.0
+0000047C:             ; ;    1st Mar 2023
+0000047C:             ; ;
+0000047C:             ; ;    Description:
+0000047C:             ; ;               This programme provedes several functions to manipulate the LCD.
+0000047C:             ; ;
+0000047C:             ; ;    Specific to HD44780 LCD 
+0000047C:             ; ;------------------------------------------------------------------------   
+0000047C:             ; 
+0000047C:             ; read_control_signal                    EQU 4 ; the signal for reading the control register in t
+                      ; he LCD
+0000047C:             ; write_to_control_signal                    EQU 0 ; the signal for writing to the control regist
+                      ; er in the LCD
+0000047C:             ; write_to_data_signal                   EQU 2 ; the signal for writing to the data register in t
+                      ; he LCD
+0000047C:             ; enable                                                 EQU 1 ; enable the LCD operation
+0000047C:             ; disable                                                EQU 1 ; disable the LCD operation
+0000047C:             ; if_busy                                                EQU &80 ; signal to sheck if the LCD is 
+                      ; busy
+0000047C:             ; busy                                                   EQU &80 ; a bit which is set for busy 
+0000047C:             ; DELAY_LOOP_TIMES                               EQU &8000
+0000047C:             ; clear_display_command                  EQU &01
+0000047C:             ; move_cursor_to_line1_beginning_command     EQU &80
+0000047C:             ; end_of_str                          EQU 0
+0000047C:             ; 
+0000047C:             ; 
+0000047C:             ; ;------------------------
+0000047C:             ; ;    Procedure: LCD_print_str
+0000047C:             ; ;
+0000047C:             ; ;    Description:
+0000047C:             ; ;        Print a string onto the LCD display.  
+0000047C:             ; ;   
+0000047C:             ; ;    Parameter:
+0000047C:             ; ;       R0: a pointer to a string to be printed 
+0000047C:             ; ;------------------------
+0000047C: E92D4011    ; print_str   STMFD SP!, {R0, R4, LR}
+00000480: E4D04001    ; print_str1  LDRB R4, [R0], #1
+00000484: E3540000    ;             CMP R4, #end_of_str
+00000488: 1B000001    ;             BLNE LCD_print_char
+0000048C: 1AFFFFFB    ;             BNE print_str1
+00000490: E8BD8011    ;             LDMFD SP!, {R0, R4, PC}
+00000494:             ; 
+00000494:             ; ;------------------------
+00000494:             ; ;    Procedure: LCD_print_char
+00000494:             ; ;
+00000494:             ; ;    Description:
+00000494:             ; ;        Print a character onto the LCD display.  
+00000494:             ; ;   
+00000494:             ; ;    Parameter:
+00000494:             ; ;       R4: a character to be printed 
+00000494:             ; ;------------------------
+00000494:             ; 
+00000494: E92D4003    ; LCD_print_char      STMFD SP!, {R0, R1, LR}             
+00000498:             ;             
+00000498: E3A00002    ;                     MOV R0, #write_to_data_signal ; write to data register in LCD 
+0000049C: E1A01004    ;                     MOV R1, R4 ; Get the parameter (a char) from  cotent of R4 
+000004A0: EB00000B    ;                     BL LCD_write
+000004A4:             ; 
+000004A4: E8BD8003    ;                     LDMFD SP!, {R0, R1, PC}
+000004A8:             ; 
+000004A8:             ; ;------------------------
+000004A8:             ; ;    Procedure: LCD_move_cursor_to_line1_beginning
+000004A8:             ; ;
+000004A8:             ; ;    Description:
+000004A8:             ; ;        As described in the name.  
+000004A8:             ; ;   
+000004A8:             ; ;    No parameter required 
+000004A8:             ; ;------------------------
+000004A8: E92D4003    ; LCD_move_cursor_to_line1_beginning  STMFD SP!, {R0, R1, LR}
+000004AC:             ; 
+000004AC: E3A00000    ;                                     MOV R0, #write_to_control_signal       ; Write to control r
+                      ; egister in LCD 
+000004B0: E3A01080    ;                                     MOV R1, #move_cursor_to_line1_beginning_command
+000004B4: EB000006    ;                                     BL LCD_write
+000004B8:             ; 
+000004B8: E8BD8003    ;                                     LDMFD SP!, {R0, R1, PC}
+000004BC:             ; 
+000004BC:             ; ;------------------------
+000004BC:             ; ;    Procedure: LCD_clear
+000004BC:             ; ;
+000004BC:             ; ;    Description:
+000004BC:             ; ;        Clear LCD display.  
+000004BC:             ; ;   
+000004BC:             ; ;    No parameter required 
+000004BC:             ; ;------------------------
+000004BC: E92D4003    ; LCD_clear           STMFD SP!, {R0, R1, LR}
+000004C0:             ; 
+000004C0: E3A00000    ;                     MOV R0, #write_to_control_signal       ; Write to control register in LCD 
+000004C4: E3A01001    ;                     MOV R1, #clear_display_command            ; clear command (&01) for LCD
+000004C8: EB000001    ;                     BL LCD_write  
+000004CC: EB000014    ;                     BL delay
+000004D0:             ; 
+000004D0: E8BD8003    ;                     LDMFD SP!, {R0, R1, PC}
+000004D4:             ; 
+000004D4:             ; ;----------------------------------------------------------------
+000004D4:             ; ;    Procedure: LCD_write
+000004D4:             ; ;
+000004D4:             ; ;    Description:
+000004D4:             ; ;              This function writes data to the one of two registers in the LCD.
+000004D4:             ; ;
+000004D4:             ; ;    Parameters: 
+000004D4:             ; ;               R0: signals to select to which register (control or data) to write. 
+000004D4:             ; ;               R1: data to be sent to the LCD.
+000004D4:             ; ;----------------------------------------------------------------
+000004D4: E92D4007    ; LCD_write       STMFD SP!, {R0-R2, LR}
+000004D8:             ;                                 
+000004D8: E3A02201    ;                                 MOV R2, #io_base_addr
+000004DC:             ; 
+000004DC: E3A00004    ; LCD_write1              MOV R0, #read_control_signal    ; Set signals {RW = 1, RS = 0, E = 0}
+000004E0: E5C20004    ;                 STRB R0, [R2, #PIO_B]           ; At Port B    
+000004E4:             ; 
+000004E4: E2200001    ;                 EOR R0, R0, #enable                     ; Validate the action above by enable t
+                      ; he LCD
+000004E8: E5C20004    ;                                 STRB R0, [R2, #PIO_B]
+000004EC:             ; 
+000004EC: E5D21000    ;                 LDRB R1, [R2, #PIO_A]       ; Load contents in Control register from LCD
+000004F0:             ; 
+000004F0: E2200001    ;                 EOR R0, R0, #disable        ; Disable the LCD
+000004F4: E5C20004    ;                 STRB R0, [R2, #PIO_B]
+000004F8:             ; 
+000004F8: E3110080    ;                 TST R1, #if_busy            ; Check bit 7 or busy 
+000004FC: 1AFFFFF6    ;                 BNE LCD_write1           ; if busy, repeat the steps above
+00000500:             ; 
+00000500:             ;                 ; Load parameters
+00000500: E55D0000    ;                 LDRB R0, [SP] ; Signals 
+00000504: E5DD1004    ;                 LDRB R1, [SP, #4] ; Data
+00000508:             ; 
+00000508: E5C20004    ;                 STRB R0, [R2, #PIO_B]      ; write signals to PortB
+0000050C: E5C21000    ;                 STRB R1, [R2, #PIO_A]      ; write data to PortA
+00000510:             ; 
+00000510: E2200001    ;                 EOR R0, R0, #enable         ; Enable write action
+00000514: E5C20004    ;                                 STRB R0, [R2, #PIO_B]
+00000518:             ; 
+00000518: E2200001    ;                 EOR R0, R0, #disable            ; Disable the action
+0000051C: E5C20004    ;                                 STRB R0, [R2, #PIO_B]
+00000520:             ; 
+00000520: E8BD8007    ;                 LDMFD SP!, {R0-R2, PC}
+00000524:             ; 
+00000524:             ; ;---------------------------------------------------------
+00000524:             ; ;    Stupid delay 
+00000524:             ; ;    Description:
+00000524:             ; ;               Repeat substracting a value to zero and then exit 
+00000524:             ; ;---------------------------------------------------------
+00000524: E92D0001    ; delay               STMFD SP!, {R0}
+00000528:             ; 
+00000528: E3A00902    ;                             MOV R0, #DELAY_LOOP_TIMES
+0000052C: E2500001    ; delay1              SUBS R0, R0, #1
+00000530: 1AFFFFFD    ;                     BNE delay1
+00000534:             ; 
+00000534: E8BD0001    ;                     LDMFD SP!, {R0}
+00000538: E1A0F00E    ;                     MOV PC, LR
+0000053C:             ; GET keypad.s
+0000053C:             ; ;-----------------------------------------------------------------------
+0000053C:             ; ;    Module: keypad programme
+0000053C:             ; ;    Author: Jiaying Huang 
+0000053C:             ; ;    Version: 1.0
+0000053C:             ; ;    2st Mar 2023
+0000053C:             ; ;
+0000053C:             ; ;    Description:
+0000053C:             ; ;                       includes functions to manipulate the keypad
+0000053C:             ; ;
+0000053C:             ; ;    Key states:  PRESSED and RELEASED
+0000053C:             ; ;
+0000053C:             ; ;------------------------------------------------------------------------
+0000053C:             ; PRESSED             EQU 1
+0000053C:             ; RELEASED            EQU 0
+0000053C:             ; scan_first_row      EQU &80
+0000053C:             ; scan_second_row     EQU &40
+0000053C:             ; scan_third_row      EQU &20
+0000053C:             ; key_state_table_size EQU 12
+0000053C:             ; key_count_table_size EQU 12
+0000053C:             ; max_debounce_count   EQU 8
+0000053C:             ; min_debounce_count   EQU 0
+0000053C:             ; 
+0000053C:             ; ; A keypad map reading the device as follows: 
+0000053C:             ; ; |3|  |6|  |9|  |#|
+0000053C:             ; ;
+0000053C:             ; ; |2|  |5|  |8|  |0|
+0000053C:             ; ;
+0000053C:             ; ; |1|  |4|  |7|  |*|
+0000053C:             ; ;
+0000053C:             ; ;Key state table indecating if a key is pressed
+0000053C: 00 00       ; key_state_table DEFB 0, 0
+0000053E:             ; ;key count table
+0000053E:             ; ;Incrementing it if the key is pressed and decrementing it if it is not
+0000053E: 00 00 00 00 ; key_count_table DEFB 0, 0, 0, 0
+00000542: 00 00 00 00 ;                 DEFB 0, 0, 0, 0
+00000546: 00 00 00 00 ;                 DEFB 0, 0, 0, 0
+0000054C:             ;                 ALIGN
+0000054C:             ; ;------------------------
+0000054C:             ; ;    Procedure: debounce
+0000054C:             ; ;
+0000054C:             ; ;    Description:
+0000054C:             ; ;          increment or decrement the count of each key depending on the corresponding state in
+                      ;  the keypad map.
+0000054C:             ; ;          If reach the max, change the key state to PRESSED, else if reach the 0, RELEASED, el
+                      ; se unchange
+0000054C:             ; ;   
+0000054C:             ; ;    No parameter required
+0000054C:             ; ;------------------------
+0000054C: E92D01FF    ; debounce        STMFD SP!, {R0-R8}
+00000550: E3A08202    ;                 MOV R8, #FPGA_io_base_addr
+00000554:             ;                 ; Loop Unrolling
+00000554: E3A0001F    ;                 MOV R0, #&1F
+00000558: E5C80003    ;                 STRB R0, [R8, #S0_upper_control_register]
+0000055C:             ; 
+0000055C: E3A00080    ;                 MOV R0, #scan_first_row
+00000560: E5C80002    ;                 STRB R0, [R8, #S0_upper_data_register]
+00000564: E5D81002    ;                 LDRB R1, [R8, #S0_upper_data_register]
+00000568: E3C110F0    ;                 BIC R1, R1, #&F0
+0000056C: E1A01201    ;                 LSL R1, R1, #4
+00000570:             ; 
+00000570: E3A00040    ;                 MOV R0, #scan_second_row
+00000574: E5C80002    ;                 STRB R0, [R8, #S0_upper_data_register]
+00000578: E5D82002    ;                 LDRB R2, [R8, #S0_upper_data_register]
+0000057C: E3C220F0    ;                 BIC R2, R2, #&F0
+00000580: E1811002    ;                 ORR R1, R1, R2
+00000584: E1A01201    ;                 LSL R1, R1, #4 
+00000588:             ; 
+00000588: E3A00020    ;                 MOV R0, #scan_third_row
+0000058C: E5C80002    ;                 STRB R0, [R8, #S0_upper_data_register]
+00000590: E5D82002    ;                 LDRB R2, [R8, #S0_upper_data_register]
+00000594: E3C220F0    ;                 BIC R2, R2, #&F0
+00000598: E1811002    ;                 ORR R1, R1, R2
+0000059C:             ; 
+0000059C:             ;                 ; keymap in the least significant 12 bits in R1
+0000059C:             ;                 ; |#|  |9|  |6|  |3|  |0|  |8|  |5|  |2|  |*|  |7|  |4|  |1|  
+0000059C:             ; 
+0000059C:             ;                 ; increment or decrement the count for each key iteratively 
+0000059C:             ;                 ; from the end of the key_count_table to the beginning.
+0000059C:             ;                 ; Since it depends on the key state stored in R1, I chose to
+0000059C:             ;                 ; initialize R4 to 1 and TST R1 with it to test if corresponding bit is set, 
+0000059C:             ;                 ; logical shfit left R4 and repeat testing each bit in the first 12 bits of R1.
+0000059C:             ;                 ; In the loop, if the key state is 1, increment the count. otherwise, decrement
+                      ;  it.
+0000059C:             ;                 ; If the count reach the max, set the corresponding bit in the key state table 
+                      ; as pressed.
+0000059C:             ;                 ; R4 = 1
+0000059C:             ;                 ; for R5=size-1; R5 >= 0; R5--{
+0000059C:             ;                 ;     if(TST R1, R4 == 0){
+0000059C:             ;                 ;         R3 -= 1
+0000059C:             ;                 ;         if reach the min, R0 = 0
+0000059C:             ;                 ;     }else{
+0000059C:             ;                 ;         R3 += 1
+0000059C:             ;                 ;         if reach the max, R0 = 1
+0000059C:             ;                 ;     }   
+0000059C:             ;                 ;     R4 = R4 << 1    
+0000059C:             ;                 ; }
+0000059C: E24F8066    ;                 ADR R8, key_count_table 
+000005A0: E24F606C    ;                 ADR R6, key_state_table ; 2 bytes but only 12 bits used 
+000005A4: E15600B0    ;                 LDRH R0, [R6] 
+000005A8: E3A0500B    ;                 MOV R5, #key_count_table_size-1 ; the index of the end of the count table 
+000005AC: E3A04001    ;                 MOV R4, #1
+000005B0:             ; 
+000005B0: E7D83005    ; debounce1       LDRB R3, [R8, R5] ; load key count
+000005B4: E1110004    ;                 TST R1, R4 ; test each bit in the first 12 bits of R1 is set
+000005B8: 1A000003    ;                 BNE debounce2 ; if the bit is set, dump to deobunce2
+000005BC:             ;                 
+000005BC: E3530000    ;                 CMP R3, #min_debounce_count ; the case not set, decrement the count, first chec
+                      ; k if it already reached the min
+000005C0: DA00000A    ;                 BLE debounce5 ; if it reached the min, do not decrement and go to the next iter
+                      ; ation
+000005C4: E2433001    ;                 SUB R3, R3, #1 
+000005C8: EA000005    ;                 BAL debounce3
+000005CC:             ; 
+000005CC: E3530008    ; debounce2       CMP R3, #max_debounce_count ; do the same check as above
+000005D0: 2A000006    ;                 BHS debounce5
+000005D4: E2833001    ;                 ADD R3, R3, #1                 
+000005D8: E3530008    ;                 CMP R3, #max_debounce_count
+000005DC: A1800004    ;                 ORRGE R0, R0, R4
+000005E0: EA000001    ;                 BAL debounce4
+000005E4:             ; 
+000005E4: E3530000    ; debounce3       CMP R3, #min_debounce_count
+000005E8: 91C00004    ;                 BICLS R0, R0, R4
+000005EC:             ; 
+000005EC: E7C83005    ; debounce4       STRB R3, [R8, R5]
+000005F0: E2555001    ; debounce5       SUBS R5, R5, #1
+000005F4: A1A04084    ;                 LSLGE R4, R4, #1
+000005F8: AAFFFFEC    ;                 BGE debounce1
+000005FC: E14600B0    ;                 STRH R0, [R6]
+00000600: E8BD01FF    ;                 LDMFD SP!, {R0-R8}
+00000604: E1A0F00E    ;                 MOV PC, LR
+00000608:             ; 
+00000608:             ; 
+00000608:             ; 
+00000608:             ; 
+00000608:             ; GET user_code.s
+00000608: EAFFFFFE    ; User_code_start B User_code_start
+0000060C: E24F80D8    ;                ADR R8, key_state_table
+00000610: E28F7062    ;                ADR R7, state
+00000614: E28F605D    ;                ADR R6, previous_state
+00000618: E28F5058    ;                ADR R5, current_state
+0000061C:             ; 
+0000061C: E5550000    ;                LDRB R0, [R5]
+00000620: E5460000    ;                STRB R0, [R6]
+00000624: E15810B0    ;                LDRH R1, [R8]
+00000628: E59F407C    ;                LDR R4, =&0FFF
+0000062C: E1110004    ;                TST R1, R4
+00000630: E3A02000    ;                 MOV R2, #0
+00000634: 05452000    ;                 STREQB R2, [R5]
+00000638: 13A02001    ;                 MOVNE R2, #1
+0000063C: 15052000    ;                 STRNE R2, [R5]
+00000640: E5560000    ;                 LDRB R0, [R6]
+00000644: E1500002    ;                 CMP R0, R2
+00000648: 0A000001    ;                 BEQ User_code_start1
+0000064C: E3520000    ;                 CMP R2, #0
+00000650: 15472000    ;                 STRNEB R2, [R7]
+00000654: E3A00000    ; User_code_start1 MOV R0, #0
+00000658: 05470000    ;                 STREQB R0, [R7]
+0000065C:             ;                
+0000065C:             ;                ;Testing code
+0000065C: E5570000    ;                LDRB R0, [R7]
+00000660: E3500001    ;                CMP R0, #1
+00000664: 1AFFFFE7    ;                BNE User_code_start
+00000668: E28F2000    ;                 ADR R2, state_table
+0000066C: E792F100    ;                 LDR PC, [R2, R0, LSL #2]
+00000670:             ; 
+00000670:             ; 
+00000670: 00000688    ; state_table        DEFW release_action
+00000674: 0000068C    ;                    DEFW press_action
+00000678: 00          ; current_state      DEFB 0
+00000679: 00          ; previous_state     DEFB 0
+0000067A: 00          ; state              DEFB 0
+0000067B: 31 34 37 2A ; key_map            DEFB "147*"
+0000067F: 32 35 38 30 ;                    DEFB '2', '5', '8', '0'
+00000683: 33 36 39 23 ;                    DEFB '3', '6', '9', '#'
+00000688:             ;                 ALIGN
+00000688: EAFFFFDE    ; release_action   BAL User_code_start
+0000068C:             ; press_action 
+0000068C:             ;                 ; keymap in the least significant 12 bits in R1
+0000068C:             ;                 ; |#|  |9|  |6|  |3|  |0|  |8|  |5|  |2|  |*|  |7|  |4|  |1| 
+0000068C: E24F8019    ;                 ADR R8, key_map
+00000690: E3A0300C    ;                 MOV R3, #12
+00000694: E1B010C1    ; press_action1   ASRS R1, R1, #1
+00000698: E5580000    ;                 LDRB R0, [R8]
+0000069C: 2F000000    ;                 SVCCS 0
+000006A0: E2533001    ;                 SUBS R3, R3, #1
+000006A4: 8AFFFFFA    ;                 BHI press_action1
+000006A8: EAFFFFD6    ;                 BAL User_code_start
+000006AC:             ; 
+000006AC:             ; 
+000006AC:             ; 
+000006AC:             ; 
+000006AC: 00000FFF    ; Remaining literals
+
+Symbol Table: Labels
+: Max_SVC                           00000004  Value
+: Len_SVC_Stack                     00000100  Value
+: Len_ISR_Stack                     00000100  Value
+: Mode_User                         00000050  Value
+: Mode_Fast_Interrupt               00000011  Value
+: Mode_Interrupt                    000000D2  Value
+: Mode_Supervisor                   000000D3  Value
+: Mode_Abort                        00000017  Value
+: Mode_Undefined                    0000001B  Value
+: Mode_System                       000000DF  Value
+: io_base_addr                      10000000  Value
+: PIO_A                             00000000  Value
+: PIO_B                             00000004  Value
+: Timer                             00000008  Value
+: Timer_compare                     0000000C  Value
+: Serial_RxD                        00000010  Value
+: Serial_TxD                        00000010  Value
+: Serial_status                     00000014  Value
+: Interrupt_requests                00000018  Value
+: Interrupt_enables                 0000001C  Value
+: Halt_port                         00000020  Value
+: FPGA_io_base_addr                 20000000  Value
+: S0_upper_data_register            00000002  Value
+: S0_upper_control_register         00000003  Value
+: Reset                             00000000  Local -- ARM
+: SVC_entry                         00000020  Local -- ARM
+: SVC_exit                          00000040  Local -- ARM
+: SVC_table                         00000048  Local -- ARM
+: SVC_0                             00000058  Local -- ARM
+: SVC_1                             00000068  Local -- ARM
+: SVC_2                             00000080  Local -- ARM
+: SVC_3                             00000094  Local -- ARM
+: ISR_entry                         000000A0  Local -- ARM
+: ISR_entry1                        000000B8  Local -- ARM
+: ISR_exit                          000000DC  Local -- ARM
+: ISR_table                         000000E0  Local -- ARM
+: ISR_time_compare                  000000E4  Local -- ARM
+: SVC_unknown                       00000100  Local -- ARM
+: _stack_base                       00000404  Local -- ARM
+: reset_handler                     00000404  Local -- ARM
+: Timer_start_delay                 00000450  Local -- ARM
+: Timer_start_delay1                00000468  Local -- ARM
+: Timer_start_delay2                00000474  Local -- ARM
+: read_control_signal               00000004  Value
+: write_to_control_signal           00000000  Value
+: write_to_data_signal              00000002  Value
+: enable                            00000001  Value
+: disable                           00000001  Value
+: if_busy                           00000080  Value
+: busy                              00000080  Value
+: DELAY_LOOP_TIMES                  00008000  Value
+: clear_display_command             00000001  Value
+: move_cursor_to_line1_beginning_c  00000080  Value
+: end_of_str                        00000000  Value
+: print_str                         0000047C  Local -- ARM
+: print_str1                        00000480  Local -- ARM
+: LCD_print_char                    00000494  Local -- ARM
+: LCD_move_cursor_to_line1_beginni  000004A8  Local -- ARM
+: LCD_clear                         000004BC  Local -- ARM
+: LCD_write                         000004D4  Local -- ARM
+: LCD_write1                        000004DC  Local -- ARM
+: delay                             00000524  Local -- ARM
+: delay1                            0000052C  Local -- ARM
+: PRESSED                           00000001  Value
+: RELEASED                          00000000  Value
+: scan_first_row                    00000080  Value
+: scan_second_row                   00000040  Value
+: scan_third_row                    00000020  Value
+: key_state_table_size              0000000C  Value
+: key_count_table_size              0000000C  Value
+: max_debounce_count                00000008  Value
+: min_debounce_count                00000000  Value
+: key_state_table                   0000053C  Local -- ARM
+: key_count_table                   0000053E  Local -- ARM
+: debounce                          0000054C  Local -- ARM
+: debounce1                         000005B0  Local -- ARM
+: debounce2                         000005CC  Local -- ARM
+: debounce3                         000005E4  Local -- ARM
+: debounce4                         000005EC  Local -- ARM
+: debounce5                         000005F0  Local -- ARM
+: User_code_start                   00000608  Local -- ARM
+: User_code_start1                  00000654  Local -- ARM
+: state_table                       00000670  Local -- ARM
+: current_state                     00000678  Local -- ARM
+: previous_state                    00000679  Local -- ARM
+: state                             0000067A  Local -- ARM
+: key_map                           0000067B  Local -- ARM
+: release_action                    00000688  Local -- ARM
+: press_action                      0000068C  Local -- ARM
+: press_action1                     00000694  Local -- ARM

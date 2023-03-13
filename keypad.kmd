@@ -1,0 +1,198 @@
+KMD
+00000000:             ; ;-----------------------------------------------------------------------
+00000000:             ; ;    Module: keypad programme
+00000000:             ; ;    Author: Jiaying Huang 
+00000000:             ; ;    Version: 1.0
+00000000:             ; ;    2st Mar 2023
+00000000:             ; ;
+00000000:             ; ;    Description:
+00000000:             ; ;                       includes functions to manipulate the keypad
+00000000:             ; ;
+00000000:             ; ;    Key states:  PRESSED and RELEASED
+00000000:             ; ;
+00000000:             ; ;------------------------------------------------------------------------
+00000000:             ; GET io_port_map.s
+00000000:             ; ;-----------------------------------------------------------------------
+00000000:             ; ;    Module: Mode labels 
+00000000:             ; ;    Author: Jiaying Huang 
+00000000:             ; ;    Version: 1.0
+00000000:             ; ;    1st Mar 2023
+00000000:             ; ;
+00000000:             ; ;    Description:
+00000000:             ; ;               Labels for the io addresses in the komodo system.
+00000000:             ; ;
+00000000:             ; ;------------------------------------------------------------------------ 
+00000000:             ; io_base_addr            EQU &10000000
+00000000:             ; PIO_A                           EQU &0
+00000000:             ; PIO_B                           EQU &04
+00000000:             ; Timer                           EQU &08
+00000000:             ; Timer_compare           EQU &0C
+00000000:             ; Serial_RxD                      EQU &10
+00000000:             ; Serial_TxD                      EQU &10
+00000000:             ; Serial_status           EQU &14
+00000000:             ; Interrupt_requests      EQU     &18
+00000000:             ; Interrupt_enables   EQU &1C
+00000000:             ; Halt_port                       EQU &20
+00000000:             ; FPGA_io_base_addr   EQU &20000000
+00000000:             ; S0_upper_data_register    EQU 2
+00000000:             ; S0_upper_control_register EQU 3
+00000000:             ; PRESSED             EQU 1
+00000000:             ; RELEASED            EQU 0
+00000000:             ; scan_first_row      EQU &80
+00000000:             ; scan_second_row     EQU &40
+00000000:             ; scan_third_row      EQU &20
+00000000:             ; key_state_table_size EQU 12
+00000000:             ; key_count_table_size EQU 12
+00000000:             ; max_debounce_count   EQU 8
+00000000:             ; min_debounce_count   EQU 0
+00000000:             ; 
+00000000: EB000004    ; test_code                  BL debounce
+00000004: EAFFFFFD    ;                             B test_code
+00000008:             ; 
+00000008:             ; 
+00000008:             ; ; A keypad map reading the device as follows: 
+00000008:             ; ; |3|  |6|  |9|  |#|
+00000008:             ; ;
+00000008:             ; ; |2|  |5|  |8|  |0|
+00000008:             ; ;
+00000008:             ; ; |1|  |4|  |7|  |*|
+00000008:             ; ;
+00000008:             ; ;Key state table indecating if a key is pressed
+00000008: 00 00       ; key_state_table DEFB 0, 0
+0000000A:             ; ;key count table
+0000000A:             ; ;Incrementing it if the key is pressed and decrementing it if it is not
+0000000A: 00 00 00 00 ; key_count_table DEFB 0, 0, 0, 0
+0000000E: 00 00 00 00 ;                 DEFB 0, 0, 0, 0
+00000012: 00 00 00 00 ;                 DEFB 0, 0, 0, 0
+00000018:             ;                 ALIGN
+00000018:             ; ;------------------------
+00000018:             ; ;    Procedure: debounce
+00000018:             ; ;
+00000018:             ; ;    Description:
+00000018:             ; ;          increment or decrement the count of each key depending on the corresponding state in
+                      ;  the keypad map.
+00000018:             ; ;          If reach the max, change the key state to PRESSED, else if reach the 0, RELEASED, el
+                      ; se unchange
+00000018:             ; ;   
+00000018:             ; ;    No parameter required
+00000018:             ; ;------------------------
+00000018: E92D01FF    ; debounce        STMFD SP!, {R0-R8}
+0000001C: E3A08202    ;                 MOV R8, #FPGA_io_base_addr
+00000020:             ;                 ; Loop Unrolling
+00000020: E3A0001F    ;                 MOV R0, #&1F
+00000024: E5C80003    ;                 STRB R0, [R8, #S0_upper_control_register]
+00000028:             ; 
+00000028: E3A00080    ;                 MOV R0, #scan_first_row
+0000002C: E5C80002    ;                 STRB R0, [R8, #S0_upper_data_register]
+00000030: E5D81002    ;                 LDRB R1, [R8, #S0_upper_data_register]
+00000034: E3C110F0    ;                 BIC R1, R1, #&F0
+00000038: E1A01201    ;                 LSL R1, R1, #4
+0000003C:             ; 
+0000003C: E3A00040    ;                 MOV R0, #scan_second_row
+00000040: E5C80002    ;                 STRB R0, [R8, #S0_upper_data_register]
+00000044: E5D82002    ;                 LDRB R2, [R8, #S0_upper_data_register]
+00000048: E3C220F0    ;                 BIC R2, R2, #&F0
+0000004C: E1811002    ;                 ORR R1, R1, R2
+00000050: E1A01201    ;                 LSL R1, R1, #4 
+00000054:             ; 
+00000054: E3A00020    ;                 MOV R0, #scan_third_row
+00000058: E5C80002    ;                 STRB R0, [R8, #S0_upper_data_register]
+0000005C: E5D82002    ;                 LDRB R2, [R8, #S0_upper_data_register]
+00000060: E3C220F0    ;                 BIC R2, R2, #&F0
+00000064: E1811002    ;                 ORR R1, R1, R2
+00000068:             ; 
+00000068:             ;                 ; keymap in the least significant 12 bits in R1
+00000068:             ;                 ; |#|  |9|  |6|  |3|  |0|  |8|  |5|  |2|  |*|  |7|  |4|  |1|  
+00000068:             ; 
+00000068:             ;                 ; increment or decrement the count for each key iteratively 
+00000068:             ;                 ; from the end of the key_count_table to the beginning.
+00000068:             ;                 ; Since it depends on the key state stored in R1, I chose to
+00000068:             ;                 ; initialize R4 to 1 and TST R1 with it to test if corresponding bit is set, 
+00000068:             ;                 ; logical shfit left R4 and repeat testing each bit in the first 12 bits of R1.
+00000068:             ;                 ; In the loop, if the key state is 1, increment the count. otherwise, decrement
+                      ;  it.
+00000068:             ;                 ; If the count reach the max, set the corresponding bit in the key state table 
+                      ; as pressed.
+00000068:             ;                 ; R4 = 1
+00000068:             ;                 ; for R5=size-1; R5 >= 0; R5--{
+00000068:             ;                 ;     if(TST R1, R4 == 0){
+00000068:             ;                 ;         R3 -= 1
+00000068:             ;                 ;         if reach the min, R0 = 0
+00000068:             ;                 ;     }else{
+00000068:             ;                 ;         R3 += 1
+00000068:             ;                 ;         if reach the max, R0 = 1
+00000068:             ;                 ;     }   
+00000068:             ;                 ;     R4 = R4 << 1    
+00000068:             ;                 ; }
+00000068: E24F8066    ;                 ADR R8, key_count_table 
+0000006C: E24F606C    ;                 ADR R6, key_state_table ; 2 bytes but only 12 bits used 
+00000070: E15600B0    ;                 LDRH R0, [R6] 
+00000074: E3A0500B    ;                 MOV R5, #key_count_table_size-1 ; the index of the end of the count table 
+00000078: E3A04001    ;                 MOV R4, #1
+0000007C:             ; 
+0000007C: E7D83005    ; debounce1       LDRB R3, [R8, R5] ; load key count
+00000080: E1110004    ;                 TST R1, R4 ; test each bit in the first 12 bits of R1 is set
+00000084: 1A000003    ;                 BNE debounce2 ; if the bit is set, dump to deobunce2
+00000088:             ;                 
+00000088: E3530000    ;                 CMP R3, #min_debounce_count ; the case not set, decrement the count, first chec
+                      ; k if it already reached the min
+0000008C: DA00000A    ;                 BLE debounce5 ; if it reached the min, do not decrement and go to the next iter
+                      ; ation
+00000090: E2433001    ;                 SUB R3, R3, #1 
+00000094: EA000005    ;                 BAL debounce3
+00000098:             ; 
+00000098: E3530008    ; debounce2       CMP R3, #max_debounce_count ; do the same check as above
+0000009C: 2A000006    ;                 BHS debounce5
+000000A0: E2833001    ;                 ADD R3, R3, #1                 
+000000A4: E3530008    ;                 CMP R3, #max_debounce_count
+000000A8: A1800004    ;                 ORRGE R0, R0, R4
+000000AC: EA000001    ;                 BAL debounce4
+000000B0:             ; 
+000000B0: E3530000    ; debounce3       CMP R3, #min_debounce_count
+000000B4: 91C00004    ;                 BICLS R0, R0, R4
+000000B8:             ; 
+000000B8: E7C83005    ; debounce4       STRB R3, [R8, R5]
+000000BC: E2555001    ; debounce5       SUBS R5, R5, #1
+000000C0: A1A04084    ;                 LSLGE R4, R4, #1
+000000C4: AAFFFFEC    ;                 BGE debounce1
+000000C8: E14600B0    ;                 STRH R0, [R6]
+000000CC: E8BD01FF    ;                 LDMFD SP!, {R0-R8}
+000000D0: E1A0F00E    ;                 MOV PC, LR
+000000D4:             ; 
+000000D4:             ; 
+000000D4:             ; 
+000000D4:             ; 
+
+Symbol Table: Labels
+: io_base_addr                      10000000  Value
+: PIO_A                             00000000  Value
+: PIO_B                             00000004  Value
+: Timer                             00000008  Value
+: Timer_compare                     0000000C  Value
+: Serial_RxD                        00000010  Value
+: Serial_TxD                        00000010  Value
+: Serial_status                     00000014  Value
+: Interrupt_requests                00000018  Value
+: Interrupt_enables                 0000001C  Value
+: Halt_port                         00000020  Value
+: FPGA_io_base_addr                 20000000  Value
+: S0_upper_data_register            00000002  Value
+: S0_upper_control_register         00000003  Value
+: PRESSED                           00000001  Value
+: RELEASED                          00000000  Value
+: scan_first_row                    00000080  Value
+: scan_second_row                   00000040  Value
+: scan_third_row                    00000020  Value
+: key_state_table_size              0000000C  Value
+: key_count_table_size              0000000C  Value
+: max_debounce_count                00000008  Value
+: min_debounce_count                00000000  Value
+: test_code                         00000000  Local -- ARM
+: key_state_table                   00000008  Local -- ARM
+: key_count_table                   0000000A  Local -- ARM
+: debounce                          00000018  Local -- ARM
+: debounce1                         0000007C  Local -- ARM
+: debounce2                         00000098  Local -- ARM
+: debounce3                         000000B0  Local -- ARM
+: debounce4                         000000B8  Local -- ARM
+: debounce5                         000000BC  Local -- ARM

@@ -8,13 +8,13 @@
 ;		Labels for the modes in arm
 ;
 ;------------------------------------------------------------------------ 
-Mode_User 			EQU &90
+Mode_User 			EQU &50
 Mode_Fast_Interrupt 	EQU &11
-Mode_Interrupt		EQU &12
-Mode_Supervisor		EQU &13
+Mode_Interrupt		EQU &D2
+Mode_Supervisor		EQU &D3
 Mode_Abort 			EQU &17
 Mode_Undefined 		EQU &1B
-Mode_System  		EQU &1F
+Mode_System  		EQU &DF
 
 
 
