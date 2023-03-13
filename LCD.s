@@ -21,6 +21,23 @@ DELAY_LOOP_TIMES 			       EQU &8000
 clear_display_command 		       EQU &01
 move_cursor_to_line1_beginning_command     EQU &80
 
+
+;------------------------
+;    Procedure: LCD_print_str
+;
+;    Description:
+;        Print a string onto the LCD display.  
+;   
+;    Parameter:
+;       R0: a pointer to a string to be printed 
+;------------------------
+print_str   STMFD SP!, {R0, R4, LR}
+print_str1  LDRB R4, [R0], #1
+            CMP R4, #end_of_str
+            BLNE LCD_print_char
+            BNE print_str1
+            LDMFD SP!, {R0, R4, PC}
+
 ;------------------------
 ;    Procedure: LCD_print_char
 ;

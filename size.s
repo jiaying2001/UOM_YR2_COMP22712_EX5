@@ -10,3 +10,4 @@
 ;------------------------------------------------------------------------ 
 Max_SVC			 EQU	 4 ; maximum number of svc cals in the os
 Len_SVC_Stack 	 EQU     256 ; stack size for supervisor mode
+Len_ISR_Stack    EQU 256 ; stack size for interrupt mode

@@ -8,7 +8,7 @@
 ;		Labels for the modes in arm
 ;
 ;------------------------------------------------------------------------ 
-Mode_User 			EQU &D0
+Mode_User 			EQU &90
 Mode_Fast_Interrupt 	EQU &11
 Mode_Interrupt		EQU &12
 Mode_Supervisor		EQU &13

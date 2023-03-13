@@ -19,3 +19,6 @@ Serial_status		EQU &14
 Interrupt_requests	EQU	&18
 Interrupt_enables   EQU &1C
 Halt_port			EQU &20
+FPGA_io_base_addr   EQU &20000000
+S0_upper_data_register    EQU 2
+S0_upper_control_register EQU 3

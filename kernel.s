@@ -19,7 +19,7 @@ Reset 			B reset_handler 	; Reset (address 0)
 				NOP 	; Page fault
 				NOP		; Page fault
 				NOP 				; Unused ‘vector’
-				NOP 		; Interrupt
+				B ISR_entry 		; Interrupt
 				NOP 		; Fast interrupt
 ; dispatch SVC call to its corresponding procedure
 SVC_entry		STMFD SP!, {R0, R2, LR}
@@ -37,14 +37,14 @@ SVC_entry		STMFD SP!, {R0, R2, LR}
 SVC_exit		LDMFD SP!, {R0, R2, LR}
 				MOVS PC, LR
 ; SVC stabe: provides currently active SVCs.
-SVC_table		DEFW SCV_0
+SVC_table		DEFW SVC_0
                 DEFW SVC_1
                 DEFW SVC_2
                 DEFW SVC_3
 ; SVC_0: print a character to the LCD
 ; @param R0 a 8-bit ASCII code
 ; @return None
-SCV_0 			STMFD SP!, {R4, LR}
+SVC_0 			STMFD SP!, {R4, LR}
 
         		; Current Stack View: -> R4, LR, R0, R2, LR
 				LDR R4, [SP, #(2 * 4)] ; Get the param from R0
@@ -78,29 +78,79 @@ SVC_2   		STMFD SP!, {R8}
 SVC_3   		STMFD SP!, {LR}
 		        BL LCD_move_cursor_to_line1_beginning
 		        LDMFD SP!, {PC}
+
+; Entry point for interrupt services
+ISR_entry   SUB LR, LR, #4
+            STMFD SP!, {R0-R2, R8, LR}
+
+            MOV R8, #io_base_addr
+            LDRB R0, [R8, #Interrupt_requests]
+			MOV R1, R0
+            ; set up a counter incrementing at each right shift operation,
+			; indicating which bit of the original byte is shifted. if the 
+			; bit shifted is set, then the carry bit should be set, we can then know 
+			; which bit in the original is set from the counter.
+            MOV R2, #-1 ; counter to -1 to make the first bit shifted is bit 0
+ISR_entry1  ADD R2, R2, #1
+            ASRS R1, R1, #1
+            BCC ISR_entry1
+
+			; clear the interrupt source
+			MOV R3, #1
+			BIC R0, R3
+			STRB R0, [R8, #Interrupt_requests]
+
+            ADR R1, ISR_table
+            ADR LR, ISR_exit
+            LDR PC, [R1, R2, LSL #2]
+
+ISR_exit    LDMFD SP!, {R1-R2, R8, PC}^
+
+ISR_table   DEFW  ISR_time_compare
+
+ISR_time_compare    
+                    LDRB R1, [R8, #Timer_compare]
+                    ADD R1, R1, #10
+                    STRB R1, [R8, #Timer_compare]
+
+					B debounce
+
+                    MOV PC, LR 
+
+
+
 ; reset_handler: Initialization
 ; 1. set-up for the stack in Supervisor and User modes
 ; 2. clear the display on the LCD
 SVC_unknown B SVC_exit
 				
-				DEFS 512	
+				DEFS 768	
 _stack_base 	
 reset_handler 	ADR R0, _stack_base ; reset_handler here treated as stack base
 				MOV SP, R0
 				SUB R0, R0, #Len_SVC_Stack
 				MSR CPSR, #Mode_System
 				MOV SP, R0 
+				SUB R0, R0, #Len_ISR_Stack
+				MSR CPSR, #Mode_Interrupt
+				MOV SP, R0
 				MSR CPSR, #Mode_Supervisor
 
 				BL LCD_clear
+
+				ADR R0, Interrupt_enables
+				MOV R1, #1
+				LDRB R1, [R0] 
+
 				; Switch to User mode
-				MOV LR, #Mode_User ; User mode, no ints.
+				MOV LR, #Mode_User ; User mode, with ints.
 				MSR SPSR, LR ;
 				ADR LR, User_code_start
 				MOVS PC, LR ; ‘Return’ to user code
 GET timer.s
 GET LCD.s
 GET user_code.s
+GET keypad.s
 
 
 
